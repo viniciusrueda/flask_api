@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "https://portifoliovinicius.com.br"}})
+CORS(app, resources={r"/*": {"origins": "https://portfoliovinicius.com.br"}})
 
 # Pasta para salvar arquivos temporários
 TEMP_FOLDER = "static"
