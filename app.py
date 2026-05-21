@@ -6,51 +6,33 @@ from bs4 import BeautifulSoup
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "https://portfoliovinicius.com.br"}})
+# Mantém a permissão para o seu domínio no Hostinger
+CORS(app, resources={r"/*": {"origins": "https://portifoliovinicius.com.br"}})
 
 # Pasta para salvar arquivos temporários
 TEMP_FOLDER = "static"
 os.makedirs(TEMP_FOLDER, exist_ok=True)
 
-# Variáveis de ambiente para autenticação no Spotify
-refresh_token = os.getenv("REFRESH_TOKEN")
-client_id = os.getenv("CLIENT_ID")
-client_secret = os.getenv("CLIENT_SECRET")
-
-# Função para renovar o token de acesso do Spotify
-def refresh_access_token(refresh_token):
-    url = 'https://accounts.spotify.com/api/token'
-    payload = {
-        'grant_type': 'refresh_token',
-        'refresh_token': refresh_token,
-        'client_id': client_id ,
-        'client_secret': client_secret
-    }
-    response = requests.post(url, data=payload)
-    data = response.json()
-
-    if 'access_token' in data:
-        return data['access_token']
-    else:
-        print("Erro ao gerar novo token:", data)
-        return None
+# Variável de ambiente para o YouTube (Configurar no painel do Railway)
+YOUTUBE_API_KEY = os.getenv("AIzaSyDqHFdy03DUjY3zYmWYon-M92ogmKvcvJI")
 
 # Rota principal
 @app.route('/')
 def home():
-    return "API Flask Rodando!"
+    return "API Flask Rodando com YouTube e Web Scraping!"
 
 # Rota para executar códigos específicos
 @app.route('/executar_codigo', methods=['GET'])
-def executar_codigo():
+def ejecutar_codigo():
     tipo = request.args.get('tipo', '')
 
     if not tipo:
         return jsonify({"erro": "Tipo de código não informado!"}), 400
 
     try:
+        # Mantive os mesmos termos de "tipo" para não quebrar o seu front-end
         if tipo == "api_spotify":
-            arquivo = buscar_musicas()
+            arquivo = buscar_videos_youtube()
         elif tipo == "Web_Scrapping_":
             arquivo = fazer_scraping()
         else:
@@ -61,38 +43,69 @@ def executar_codigo():
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# Função para buscar músicas no Spotify
-def buscar_musicas():
-    access_token = refresh_access_token(refresh_token)
+# Nova função que substitui o Spotify consumindo a API do YouTube
+def buscar_videos_youtube():
+    if not YOUTUBE_API_KEY:
+        raise Exception("Chave de API do YouTube (YOUTUBE_API_KEY) não configurada nas variáveis de ambiente.")
+
+    url = 'https://www.googleapis.com/youtube/v3/videos'
+
+    # Categorias de vídeos para popular a planilha de forma analítica
+    categorias = {
+        'Música': '10',
+        'Games': '20',
+        'Ciência e Tecnologia': '28',
+        'Esportes': '17'
+    }
     
-    if not access_token:
-        return jsonify({"erro": "Falha ao obter token de acesso do Spotify!"}), 500
+    all_video_data = []
 
-    genres = ['rock', 'rap', 'pop', 'samba', 'electronic', 'mpb', 'sertanejo']
-    all_track_data = []
-
-    for genre in genres:
-        url = f'https://api.spotify.com/v1/search?q=genre:{genre}&type=track&limit=1'
-        headers = {'Authorization': f'Bearer {access_token}'}
-        response = requests.get(url, headers=headers)
+    for nome_categoria, id_categoria in categorias.items():
+        payload = {
+            'part': 'snippet,statistics',
+            'chart': 'mostPopular',
+            'videoCategoryId': id_categoria,
+            'regionCode': 'BR',  # Focado nas tendências do Brasil
+            'maxResults': 5,     # Coleta os 5 principais vídeos de cada categoria
+            'key': YOUTUBE_API_KEY
+        }
+        
+        response = requests.get(url, params=payload)
+        
         if response.status_code == 200:
             data = response.json()
-            tracks = data.get('tracks', {}).get('items', [])
-            for track in tracks:
-                all_track_data.append({
-                    'Gênero': genre,
-                    'Nome': track['name'],
-                    'Popularidade': track['popularity'],
-                    'Link': track['external_urls']['spotify']
+            items = data.get('items', [])
+            
+            for item in items:
+                snippet = item.get('snippet', {})
+                statistics = item.get('statistics', {})
+                video_id = item.get('id', '')
+                
+                all_video_data.append({
+                    'Categoria': nome_categoria,
+                    'Título do Vídeo': snippet.get('title', ''),
+                    'Canal': snippet.get('channelTitle', ''),
+                    'Visualizações': int(statistics.get('viewCount', 0)),
+                    'Likes': int(statistics.get('likeCount', 0)),
+                    'Link': f'https://www.youtube.com/watch?v={video_id}'
                 })
+        else:
+            raise Exception(f"Erro na API do YouTube (Status {response.status_code}): {response.text}")
 
-    df = pd.DataFrame(all_track_data)
-    file_path = os.path.join(TEMP_FOLDER, "api_spotify_resultado.xlsx")
-    df.to_excel(file_path, index=False, engine="openpyxl")
+    if all_video_data:
+        df = pd.DataFrame(all_video_data)
+        # Ordena o relatório por número de visualizações
+        df = df.sort_values(by='Visualizações', ascending=False)
+        
+        # Mantém o mesmo nome de arquivo para o link de download do Hostinger continuar funcionando
+        file_path = os.path.join(TEMP_FOLDER, "api_spotify_resultado.xlsx")
+        df.to_excel(file_path, index=False, engine="openpyxl")
+        
+        return file_path
+    else:
+        raise Exception("Nenhum dado foi retornado pela API do YouTube.")
 
-    return file_path  # Retorna o caminho do arquivo gerado
-
-# Função para fazer web scraping
+# Função de web scraping mantida intacta
 def fazer_scraping():
     url = "https://www.ibyte.com.br/pcs-e-notebooks/computador"
     headers = {
@@ -132,9 +145,9 @@ def fazer_scraping():
         file_path = os.path.join(TEMP_FOLDER, "Web_Scrapping_resultado.xlsx")
         df.to_excel(file_path, index=False, engine="openpyxl")
 
-        return file_path  # Retorna o caminho do arquivo gerado
+        return file_path
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8000))  # Usa a variável de ambiente ou padrão 8000
+    port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port)
 
