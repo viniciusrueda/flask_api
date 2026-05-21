@@ -7,7 +7,7 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 # Mantém a permissão para o seu domínio no Hostinger
-CORS(app, resources={r"/*": {"origins": "https://portifoliovinicius.com.br"}})
+CORS(app, resources={r"/*": {"origins": "https://portfoliovinicius.com.br"}})
 
 # Pasta para salvar arquivos temporários
 TEMP_FOLDER = "static"
