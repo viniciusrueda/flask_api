@@ -6,14 +6,14 @@ from bs4 import BeautifulSoup
 from flask_cors import CORS
 
 app = Flask(__name__)
-# Mantém a permissão para o seu domínio no Hostinger
+# Mantém a permissão estrita para o seu domínio oficial no Hostinger
 CORS(app, resources={r"/*": {"origins": "https://portfoliovinicius.com.br"}})
 
 # Pasta para salvar arquivos temporários
 TEMP_FOLDER = "static"
 os.makedirs(TEMP_FOLDER, exist_ok=True)
 
-# Variável de ambiente para o YouTube (Configurar no painel do Railway)
+# Variável de ambiente para o YouTube (Configurada no painel do Railway)
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 # Rota principal
@@ -30,27 +30,27 @@ def ejecutar_codigo():
         return jsonify({"erro": "Tipo de código não informado!"}), 400
 
     try:
-        # Mantive os mesmos termos de "tipo" para não quebrar o seu front-end
-        if tipo == "api_spotify":
+        # Corrigido para 'api_youtube' para bater com o parâmetro enviado pelo Hostinger
+        if tipo == "api_youtube":
             arquivo = buscar_videos_youtube()
         elif tipo == "Web_Scrapping_":
             arquivo = fazer_scraping()
         else:
-            return jsonify({"erro": "Tipo inválido!"}), 400
+            return jsonify({"erro": f"Tipo '{tipo}' inválido!"}), 400
 
         return send_file(arquivo, as_attachment=True)
 
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# Nova função que substitui o Spotify consumindo a API do YouTube
+# Função que consome a API do YouTube Data v3
 def buscar_videos_youtube():
     if not YOUTUBE_API_KEY:
-        raise Exception("Chave de API do YouTube (YOUTUBE_API_KEY) não configurada nas variáveis de ambiente.")
+        raise Exception("Chave de API do YouTube (YOUTUBE_API_KEY) não encontrada nas variáveis de ambiente.")
 
     url = 'https://www.googleapis.com/youtube/v3/videos'
 
-    # Categorias de vídeos para popular a planilha de forma analítica
+    # Categorias de vídeos oficiais da API do YouTube
     categorias = {
         'Música': '10',
         'Games': '20',
@@ -65,8 +65,8 @@ def buscar_videos_youtube():
             'part': 'snippet,statistics',
             'chart': 'mostPopular',
             'videoCategoryId': id_categoria,
-            'regionCode': 'BR',  # Focado nas tendências do Brasil
-            'maxResults': 5,     # Coleta os 5 principais vídeos de cada categoria
+            'regionCode': 'BR',  # Tendências do Brasil
+            'maxResults': 5,     # Traz os top 5 vídeos de cada categoria
             'key': YOUTUBE_API_KEY
         }
         
@@ -94,23 +94,22 @@ def buscar_videos_youtube():
 
     if all_video_data:
         df = pd.DataFrame(all_video_data)
-        # Ordena o relatório por número de visualizações
+        # Ordenação analítica por volume de visualizações
         df = df.sort_values(by='Visualizações', ascending=False)
         
-        # Mantém o mesmo nome de arquivo para o link de download do Hostinger continuar funcionando
-        file_path = os.path.join(TEMP_FOLDER, "api_spotify_resultado.xlsx")
+        # Nome do arquivo configurado para o download do navegador
+        file_path = os.path.join(TEMP_FOLDER, "api_youtube_resultado.xlsx")
         df.to_excel(file_path, index=False, engine="openpyxl")
         
         return file_path
     else:
-        raise Exception("Nenhum dado foi retornado pela API do YouTube.")
+        raise Exception("A API do YouTube não retornou nenhum dado válido.")
 
 # Função de web scraping mantida intacta
 def fazer_scraping():
     url = "https://www.ibyte.com.br/pcs-e-notebooks/computador"
     headers = {
-        "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
     }
 
     response = requests.get(url, headers=headers)
@@ -120,18 +119,13 @@ def fazer_scraping():
 
         for produto in soup.find_all(
                 "div",
-                class_=
-                "flex flex-row min-h-full relative w-full overflow-hidden bg-white shadow rounded transition-shadow h-full md:flex-col hover:shadow-md"
+                class_="flex flex-row min-h-full relative w-full overflow-hidden bg-white shadow rounded transition-shadow h-full md:flex-col hover:shadow-md"
         ):
             try:
                 nome = produto.find("h2", class_="text-gray-800").text.strip()
-                preco = produto.find(
-                    "span",
-                    class_="text-verde-500 js-best-price").text.strip()
-                desconto = produto.find("p",
-                                        class_="flex flag js-discount-flag")
-                desconto = desconto.text.strip(
-                ) if desconto else "Sem desconto importante"
+                preco = produto.find("span", class_="text-verde-500 js-best-price").text.strip()
+                desconto = produto.find("p", class_="flex flag js-discount-flag")
+                desconto = desconto.text.strip() if desconto else "Sem desconto importante"
 
                 produtos.append({
                     "Nome": nome,
@@ -150,4 +144,3 @@ def fazer_scraping():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port)
-
