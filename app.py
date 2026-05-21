@@ -14,7 +14,7 @@ TEMP_FOLDER = "static"
 os.makedirs(TEMP_FOLDER, exist_ok=True)
 
 # Variável de ambiente para o YouTube (Configurar no painel do Railway)
-YOUTUBE_API_KEY = os.getenv("AIzaSyDqHFdy03DUjY3zYmWYon-M92ogmKvcvJI")
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 # Rota principal
 @app.route('/')
